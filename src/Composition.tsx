@@ -36,6 +36,39 @@ export const FABEO_DEFAULT_PROPS: FabeoDemoProps = {
 };
 
 /**
+ * Seconds per file in public/, parsed one file at a time and cached.
+ *
+ * Every FabeoDemo-N composition sizes itself as soon as the Studio or CLI
+ * loads, and each parseMedia() fetch holds a connection to the dev server.
+ * Chrome allows six per host, so parsing every recording at once starves the
+ * server and calculateMetadata() times out.
+ */
+const durationCache = new Map<string, Promise<number>>();
+let parseQueue: Promise<unknown> = Promise.resolve();
+
+const videoDurationInSeconds = (videoSrc: string): Promise<number> => {
+  const cached = durationCache.get(videoSrc);
+  if (cached) {
+    return cached;
+  }
+
+  const duration = parseQueue.then(async () => {
+    // Reads the container rather than decoding, so it works for HEVC too.
+    const { slowDurationInSeconds } = await parseMedia({
+      src: staticFile(videoSrc),
+      fields: { slowDurationInSeconds: true },
+      acknowledgeRemotionLicense: true,
+    });
+    return slowDurationInSeconds;
+  });
+
+  // Keep the queue moving past a bad file, and let a fixed file retry.
+  parseQueue = duration.catch(() => durationCache.delete(videoSrc));
+  durationCache.set(videoSrc, duration);
+  return duration;
+};
+
+/**
  * Size the timeline to the chosen video, so swapping recordings never leaves
  * the preview too short or running on past the last frame.
  */
@@ -49,17 +82,9 @@ export const calculateFabeoMetadata: CalculateMetadataFunction<
   }
 
   try {
-    // Reads the container rather than decoding, so it works for HEVC too.
-    const { slowDurationInSeconds } = await parseMedia({
-      src: staticFile(props.videoSrc),
-      fields: { slowDurationInSeconds: true },
-      acknowledgeRemotionLicense: true,
-    });
+    const seconds = await videoDurationInSeconds(props.videoSrc);
     return {
-      durationInFrames: Math.max(
-        1,
-        Math.round(slowDurationInSeconds * VIDEO_FPS),
-      ),
+      durationInFrames: Math.max(1, Math.round(seconds * VIDEO_FPS)),
     };
   } catch (error) {
     throw new Error(
@@ -451,12 +476,162 @@ export const MAIA_FIX_SHOTS: TranslateShot[] = [
   },
 ];
 
+/** public/5.mp4: Maia's review, the category follow-up and the clean rerun. */
+export const FOLLOW_UP_VIDEO_SRC = "5.mp4";
+
+/** The follow-up edit. Every slide is within its clamp limit. */
+export const FOLLOW_UP_SHOTS: TranslateShot[] = [
+  {
+    label: "Full scenario overview",
+    from: 0,
+    to: 15,
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+  },
+  {
+    label: "Maia sidebar, Review button clicked",
+    from: 16,
+    to: 30,
+    scale: 1.4,
+    translateX: 18,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Maia's diagnosis of the incomplete Google Sheets fields",
+    from: 31,
+    to: 53,
+    scale: 1.45,
+    translateX: 20,
+    translateY: 5,
+    easing: "ease-out",
+  },
+  {
+    label: "Scenario rerun execution",
+    from: 54,
+    to: 75,
+    scale: 1.25,
+    translateX: 0,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Google Sheets tab, category becoming timestamp",
+    from: 76,
+    to: 90,
+    scale: 1.35,
+    translateX: 0,
+    translateY: 5,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Medium overview, canvas and Maia panel",
+    from: 91,
+    to: 127,
+    scale: 1.2,
+    translateX: 5,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Maia input, typing but category becomes timestamp too",
+    from: 128,
+    to: 146,
+    scale: 1.45,
+    translateX: 18,
+    translateY: -5,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Medium overview, Maia thinking and updating the agent tool",
+    from: 147,
+    to: 166,
+    scale: 1.2,
+    translateX: 5,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Maia's Version 6 fix for Category and the action sentence",
+    from: 167,
+    to: 187,
+    scale: 1.45,
+    translateX: 20,
+    translateY: 5,
+    easing: "ease-out",
+  },
+  {
+    label: "Final execution run",
+    from: 188,
+    to: 197,
+    scale: 1.25,
+    translateX: 0,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Google Sheets tab, clean columns",
+    from: 198,
+    to: 205,
+    scale: 1.3,
+    translateX: 5,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Full canvas reset",
+    from: 206,
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+];
+
+/** public/6.mp4: the outro. */
+export const OUTRO_VIDEO_SRC = "6.mp4";
+
+/**
+ * The outro edit. The last shot sits exactly at the clamp limit on both axes
+ * at scale 1.4, flush with the left and bottom edges.
+ */
+export const OUTRO_SHOTS: TranslateShot[] = [
+  {
+    label: "Opening, slight push-in",
+    from: 0,
+    to: 9,
+    scale: 1.1,
+    translateX: 0,
+    translateY: 0,
+  },
+  {
+    label: "Left-side push-in",
+    from: 10,
+    to: 17,
+    scale: 1.35,
+    translateX: 15,
+    translateY: 5,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Final punch-in",
+    from: 18,
+    scale: 1.4,
+    translateX: 20,
+    translateY: -20,
+    easing: "ease-out",
+  },
+];
+
 /** Recordings with their own TranslateCamera edit, by file name in public/. */
 export const TRANSLATE_SHOTS = new Map<string, TranslateShot[]>([
   [INTRO_VIDEO_SRC, INTRO_SHOTS],
   [EXPLAIN_VIDEO_SRC, EXPLAIN_SHOTS],
   [TEST_BREAK_VIDEO_SRC, TEST_BREAK_SHOTS],
   [MAIA_FIX_VIDEO_SRC, MAIA_FIX_SHOTS],
+  [FOLLOW_UP_VIDEO_SRC, FOLLOW_UP_SHOTS],
+  [OUTRO_VIDEO_SRC, OUTRO_SHOTS],
 ]);
 
 /** The recording, scaled to fill the composition. */
