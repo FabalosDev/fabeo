@@ -221,6 +221,75 @@ export const INTRO_SHOTS: TranslateShot[] = [
   },
 ];
 
+/** public/2.mp4: walkthrough of the triage scenario canvas and its tools. */
+export const EXPLAIN_VIDEO_SRC = "2.mp4";
+
+/**
+ * The explainer edit. The slides are authored at the clamp limit where a shot
+ * should sit flush against an edge, so nothing here is cut back.
+ */
+export const EXPLAIN_SHOTS: TranslateShot[] = [
+  {
+    label: "Full scenario",
+    from: 0,
+    to: 20,
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+  },
+  {
+    label: "Incoming Triage Webhook 1 and Make AI Agent 6",
+    from: 21,
+    to: 36,
+    scale: 1.35,
+    translateX: 10,
+    translateY: 17.5,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Downstream tools: Telegram Bot and Google Sheets",
+    from: 37,
+    to: 54,
+    scale: 1.3,
+    translateX: -15,
+    translateY: -15,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Make AI Agent, centre focus",
+    from: 55,
+    to: 82,
+    scale: 1.4,
+    translateX: -2,
+    translateY: 16,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Google Sheets tab headers",
+    from: 83,
+    to: 91,
+    scale: 1.2,
+    translateX: 5,
+    translateY: 10,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Full scenario reset",
+    from: 92,
+    to: 99.5,
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+];
+
+/** Recordings with their own TranslateCamera edit, by file name in public/. */
+export const TRANSLATE_SHOTS = new Map<string, TranslateShot[]>([
+  [INTRO_VIDEO_SRC, INTRO_SHOTS],
+  [EXPLAIN_VIDEO_SRC, EXPLAIN_SHOTS],
+]);
+
 /** The recording, scaled to fill the composition. */
 export const RecordingLayer: React.FC<{ videoSrc: string }> = ({
   videoSrc,
@@ -240,14 +309,16 @@ export const RecordingLayer: React.FC<{ videoSrc: string }> = ({
 );
 
 /**
- * The full shot: screen recording under the hand-timed camera. The intro has
- * its own shot table; every other recording uses the triage shots. No
- * FocusRing here, since it would sit on top of the text each punch-in is there
- * to show.
+ * The full shot: screen recording under the hand-timed camera. Recordings in
+ * TRANSLATE_SHOTS get their own edit, clamped so no black bars ever show; every
+ * other recording uses the triage shots. No FocusRing here, since it would sit
+ * on top of the text each punch-in is there to show.
  */
-export const FabeoDemo: React.FC<FabeoDemoProps> = ({ videoSrc }) =>
-  videoSrc === INTRO_VIDEO_SRC ? (
-    <TranslateCamera shots={INTRO_SHOTS}>
+export const FabeoDemo: React.FC<FabeoDemoProps> = ({ videoSrc }) => {
+  const translateShots = TRANSLATE_SHOTS.get(videoSrc);
+
+  return translateShots ? (
+    <TranslateCamera shots={translateShots} clampToBounds>
       <RecordingLayer videoSrc={videoSrc} />
     </TranslateCamera>
   ) : (
@@ -255,3 +326,4 @@ export const FabeoDemo: React.FC<FabeoDemoProps> = ({ videoSrc }) =>
       <RecordingLayer videoSrc={videoSrc} />
     </ZoomCamera>
   );
+};
