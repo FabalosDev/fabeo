@@ -284,10 +284,80 @@ export const EXPLAIN_SHOTS: TranslateShot[] = [
   },
 ];
 
+/** public/3.mp4: running the triage scenario, then breaking it on purpose. */
+export const TEST_BREAK_VIDEO_SRC = "3.mp4";
+
+/** The test and break edit. Every slide is within its clamp limit. */
+export const TEST_BREAK_SHOTS: TranslateShot[] = [
+  {
+    label: "Run once click, bottom left",
+    from: 0,
+    to: 6,
+    scale: 1.25,
+    translateX: 10,
+    translateY: -12.5,
+  },
+  {
+    label: "Make AI Agent run and tool executions",
+    from: 7,
+    to: 23,
+    scale: 1.3,
+    translateX: -5,
+    translateY: 15,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Google Sheets, successful triage row and text wrapping",
+    from: 24,
+    to: 51,
+    scale: 1.25,
+    translateX: 5,
+    translateY: 12.5,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Scenario overview, let's break the scenario",
+    from: 52,
+    to: 65,
+    scale: 1.05,
+    translateX: 0,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Google Sheets module modal opening",
+    from: 66,
+    to: 74,
+    scale: 1.35,
+    translateX: 5,
+    translateY: 5,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Timestamp (A) field, typing the broken value",
+    from: 75,
+    // The Sheets modal closes at about 88.5s, mid pull-back.
+    to: 88,
+    scale: 1.55,
+    translateX: 10,
+    translateY: 15,
+    easing: "ease-out",
+  },
+  {
+    label: "Pull back to the full canvas",
+    from: 89,
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+];
+
 /** Recordings with their own TranslateCamera edit, by file name in public/. */
 export const TRANSLATE_SHOTS = new Map<string, TranslateShot[]>([
   [INTRO_VIDEO_SRC, INTRO_SHOTS],
   [EXPLAIN_VIDEO_SRC, EXPLAIN_SHOTS],
+  [TEST_BREAK_VIDEO_SRC, TEST_BREAK_SHOTS],
 ]);
 
 /** The recording, scaled to fill the composition. */
