@@ -167,6 +167,12 @@ export const ZoomCamera: React.FC<ZoomCameraProps> = ({
     }
     const next = sorted.find((keyframe) => keyframe.frame > at) ?? prev;
 
+    // At or past the last keyframe there is nothing to travel to, and
+    // interpolate() rejects an input range like [2340, 2340], so hold the pose.
+    if (next.frame <= prev.frame) {
+      return { x: prev.x, y: prev.y, scale: prev.scale };
+    }
+
     // The transition lasts exactly as long as the gap between the two
     // keyframes, so timing is authored on the timeline and not in the physics.
     const durationInFrames = Math.max(1, next.frame - prev.frame);
