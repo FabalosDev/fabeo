@@ -2,9 +2,8 @@ import "./index.css";
 import { Composition } from "remotion";
 import {
   calculateFabeoMetadata,
+  FABEO_DEFAULT_PROPS,
   FabeoDemo,
-  FALLBACK_DURATION,
-  FALLBACK_KEYFRAMES,
   VIDEO_FPS,
 } from "./Composition";
 import { MockupDemo, MOCKUP_DURATION } from "./DemoCanvas";
@@ -12,9 +11,10 @@ import { MockupDemo, MOCKUP_DURATION } from "./DemoCanvas";
 /**
  * Both compositions are 1920x1080 at 60fps.
  *
- * FabeoDemo flies the camera over the real screen recording, with the timeline
- * derived from public/events.json at load time (see calculateFabeoMetadata), so
- * durationInFrames and defaultProps here are only the pre-calculation values.
+ * FabeoDemo flies the camera over a recording in public/ using the hand-timed
+ * shot table in Composition.tsx. Pick the file with the `videoSrc` prop (Studio
+ * props panel, or --props on the CLI); the length follows the video unless a
+ * `durationInFrames` prop overrides it.
  *
  * MockupDemo does the same over the synthetic automation-builder UI, which is
  * handy for tuning easing without waiting on video decode.
@@ -26,8 +26,7 @@ export const RemotionRoot: React.FC = () => {
         id="FabeoDemo"
         component={FabeoDemo}
         calculateMetadata={calculateFabeoMetadata}
-        defaultProps={{ keyframes: FALLBACK_KEYFRAMES }}
-        durationInFrames={FALLBACK_DURATION}
+        defaultProps={FABEO_DEFAULT_PROPS}
         fps={VIDEO_FPS}
         width={1920}
         height={1080}

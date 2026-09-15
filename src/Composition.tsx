@@ -1,136 +1,257 @@
 import React from "react";
+import { parseMedia } from "@remotion/media-parser";
 import {
   AbsoluteFill,
   CalculateMetadataFunction,
   OffthreadVideo,
   staticFile,
 } from "remotion";
-import {
-  eventsToKeyframes,
-  RecordedEvent,
-} from "./eventsToKeyframes";
-import { FocusRing, KeyframeFocus, ZoomCamera } from "./ZoomCamera";
+import { TranslateCamera, TranslateShot } from "./TranslateCamera";
+import { CameraEasing, KeyframeFocus, ZoomCamera } from "./ZoomCamera";
 
 /**
- * The screen recording the camera flies over, and the event log recorded
- * alongside it by recorder.py. Both live in public/, so they are addressed with
- * staticFile() rather than an import.
+ * Default recording: public/4.mp4, the Make AI Agent triage walkthrough
+ * (formerly tutorial.mp4). Any other file in public/ can be swapped in through
+ * the `videoSrc` prop; files there are addressed with staticFile(), not imports.
+ *
+ * Recordings are 16:9 and scaled to fill the 1920x1080 composition, so the
+ * focus points below are composition pixels whatever the source resolution.
  */
-export const VIDEO_SRC = "tutorial.mp4";
-export const EVENTS_SRC = "events.json";
+export const DEFAULT_VIDEO_SRC = "4.mp4";
 
-/** Composition frame rate. The source is 30fps; 60 keeps the camera smooth. */
 export const VIDEO_FPS = 60;
 
-/**
- * public/tutorial.mp4 is 9m37s, which is 34,613 frames at 60fps: far too long
- * to scrub while tuning, and slow to render. The timeline length is derived
- * from the event log, then capped here so one stray late event cannot turn a
- * preview into a ten-minute render. Raise it to cover a longer session.
- */
-export const VIDEO_START_SECONDS = 0;
-export const MAX_PREVIEW_SECONDS = 24;
-
-/** Used only when there is no usable event log to derive a timeline from. */
-export const FALLBACK_DURATION = 20 * VIDEO_FPS;
-
-/**
- * Camera shape. These feed eventsToKeyframes() and are the main dials for how
- * the derived camera behaves; they are not tied to any particular recording.
- */
-export const CAMERA_OPTIONS = {
-  fps: VIDEO_FPS,
-  /** Where the camera rests between targets: the centre of the frame. */
-  wide: { x: 960, y: 540 },
-  clickScale: 2.0,
-  typeScale: 2.2,
-  moveDuration: 85,
-  holdDuration: 35,
-  mergeDistance: 160,
-  idleResetSeconds: 2.5,
-  startOffsetSeconds: VIDEO_START_SECONDS,
-} as const;
-
-/**
- * Camera used when public/events.json is missing or unreadable, so the
- * composition still renders something sensible before the first recording.
- */
-export const FALLBACK_KEYFRAMES: KeyframeFocus[] = [
-  { frame: 0, x: 960, y: 540, scale: 1 },
-  { frame: 45, x: 960, y: 540, scale: 1 },
-  { frame: 130, x: 960, y: 420, scale: 2.0, easing: "spring" },
-  { frame: 165, x: 960, y: 420, scale: 2.0 },
-  { frame: 250, x: 1240, y: 620, scale: 2.4, easing: "ease-in-out" },
-  { frame: 285, x: 1240, y: 620, scale: 2.4 },
-  { frame: 370, x: 960, y: 540, scale: 1, easing: "spring" },
-  { frame: FALLBACK_DURATION, x: 960, y: 540, scale: 1 },
-];
-
 export type FabeoDemoProps = {
-  keyframes: KeyframeFocus[];
+  /** File name inside public/, e.g. "02_break_scenario.mp4". */
+  videoSrc: string;
+  /**
+   * Timeline length in frames. Leave unset to match the video's own length,
+   * which is read from the file before the first frame renders.
+   */
+  durationInFrames?: number;
+};
+
+export const FABEO_DEFAULT_PROPS: FabeoDemoProps = {
+  videoSrc: DEFAULT_VIDEO_SRC,
 };
 
 /**
- * Read the recorded events and turn them into the camera timeline, setting the
- * composition length to match. Runs before the first frame is rendered, so the
- * timeline never has to be committed to source.
+ * Size the timeline to the chosen video, so swapping recordings never leaves
+ * the preview too short or running on past the last frame.
  */
 export const calculateFabeoMetadata: CalculateMetadataFunction<
   FabeoDemoProps
-> = async () => {
-  try {
-    const response = await fetch(staticFile(EVENTS_SRC));
-    if (!response.ok) {
-      throw new Error(`events.json returned ${response.status}`);
-    }
-
-    const events = (await response.json()) as RecordedEvent[];
-    if (!Array.isArray(events) || events.length === 0) {
-      throw new Error("events.json is empty");
-    }
-
-    const derived = eventsToKeyframes(events, CAMERA_OPTIONS);
+> = async ({ props }) => {
+  if (props.durationInFrames !== undefined) {
     return {
-      props: { keyframes: derived.keyframes },
-      durationInFrames: Math.min(
-        derived.durationInFrames,
-        MAX_PREVIEW_SECONDS * VIDEO_FPS,
+      durationInFrames: Math.max(1, Math.round(props.durationInFrames)),
+    };
+  }
+
+  try {
+    // Reads the container rather than decoding, so it works for HEVC too.
+    const { slowDurationInSeconds } = await parseMedia({
+      src: staticFile(props.videoSrc),
+      fields: { slowDurationInSeconds: true },
+      acknowledgeRemotionLicense: true,
+    });
+    return {
+      durationInFrames: Math.max(
+        1,
+        Math.round(slowDurationInSeconds * VIDEO_FPS),
       ),
     };
   } catch (error) {
-    // A missing or malformed log is expected before the first recording, so
-    // fall back rather than failing the whole composition.
-    console.warn(
-      `[Fabeo] Falling back to the built-in camera: ${String(error)}`,
+    throw new Error(
+      `[Fabeo] Could not read public/${props.videoSrc}. Check the file name, or pass durationInFrames. ${String(error)}`,
     );
-    return {
-      props: { keyframes: FALLBACK_KEYFRAMES },
-      durationInFrames: FALLBACK_DURATION,
-    };
   }
 };
 
+const WIDE = { x: 960, y: 540 };
+
+interface Shot {
+  /** What the camera is framing, for whoever edits this next. */
+  label: string;
+  /** Seconds at which the camera has fully arrived. */
+  from: number;
+  /**
+   * Seconds the camera holds until before travelling to the next shot. Leave
+   * unset on the last shot to hold until the video ends, whatever its length.
+   */
+  to?: number;
+  x: number;
+  y: number;
+  scale: number;
+  /** How to travel into this shot. */
+  easing?: CameraEasing;
+}
+
+/**
+ * The edit, one row per segment. Camera moves fill the gap between one shot's
+ * `to` and the next shot's `from`, so a shorter gap is a snappier move.
+ *
+ * Near an edge the camera clamps to keep the frame filled, so the Run once and
+ * Sheets shots settle into the bottom-left and bottom-right corners with their
+ * target still in view rather than dead centre.
+ */
+export const SHOTS: Shot[] = [
+  { label: "Full view", from: 0, to: 7, ...WIDE, scale: 1 },
+  {
+    label: "Google Sheets settings modal",
+    from: 8,
+    to: 16,
+    // The modal is taller than a 135% view, so sit slightly high: keep its
+    // title bar in frame and let the Cancel / Save footer crop instead.
+    x: 1025,
+    y: 525,
+    scale: 1.35,
+    easing: "spring",
+  },
+  {
+    label: "Timestamp (A) field, parseDate formula edit",
+    from: 17,
+    to: 22,
+    x: 1000,
+    y: 425,
+    scale: 1.6,
+    easing: "spring",
+  },
+  {
+    label: "Back to full canvas",
+    from: 23,
+    to: 28,
+    ...WIDE,
+    scale: 1,
+    easing: "spring",
+  },
+  {
+    label: "Run once button click",
+    from: 28.5,
+    to: 31,
+    x: 465,
+    y: 965,
+    scale: 1.25,
+    easing: "ease-out",
+  },
+  {
+    label: 'Make AI Agent, "Agent is thinking..."',
+    from: 32,
+    to: 38.5,
+    x: 1080,
+    y: 290,
+    scale: 1.3,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Google Sheets module, Warning badge",
+    from: 39,
+    x: 1400,
+    y: 790,
+    scale: 1.45,
+    easing: "ease-out",
+  },
+];
+
+const shotsToKeyframes = (shots: Shot[], fps: number): KeyframeFocus[] =>
+  shots.flatMap(({ from, to, x, y, scale, easing }) => [
+    { frame: Math.round(from * fps), x, y, scale, easing },
+    // The camera holds its last keyframe, so an open-ended shot needs no end.
+    ...(to === undefined ? [] : [{ frame: Math.round(to * fps), x, y, scale }]),
+  ]);
+
+export const SHOT_KEYFRAMES = shotsToKeyframes(SHOTS, VIDEO_FPS);
+
+/** public/1.mp4: the to-camera intro over the Make dashboard. */
+export const INTRO_VIDEO_SRC = "1.mp4";
+
+/**
+ * The intro edit, in TranslateCamera terms: scale plus a slide in percent of
+ * the frame. Moves fill the one-second gaps between shots.
+ *
+ * The dashboard is static and the speaker bubble sits near the bottom-right
+ * corner, further out than these zooms can reach without showing black past
+ * the edge. The camera caps each slide at the edge, (scale - 1) / 2 of the
+ * frame, so the punch-ins land with the bubble in the lower-right corner.
+ */
+export const INTRO_SHOTS: TranslateShot[] = [
+  {
+    label: "Full dashboard",
+    from: 0,
+    to: 6,
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+  },
+  {
+    label: "Top-centre Make command area, pipelines breaking",
+    from: 7,
+    to: 17,
+    scale: 1.25,
+    translateX: 5,
+    translateY: 15,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Speaker bubble, lower right, introducing Maia",
+    from: 18,
+    to: 29,
+    scale: 1.4,
+    translateX: -25,
+    translateY: -28,
+    easing: "ease-out",
+  },
+  {
+    label: "Medium-centre overview",
+    from: 30,
+    to: 34,
+    scale: 1.15,
+    translateX: 0,
+    translateY: 5,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Speaker face cam, sign-off (come, let's build)",
+    from: 35,
+    to: 39.5,
+    scale: 1.35,
+    translateX: -25,
+    translateY: -28,
+    easing: "ease-out",
+  },
+];
+
 /** The recording, scaled to fill the composition. */
-export const RecordingLayer: React.FC = () => (
+export const RecordingLayer: React.FC<{ videoSrc: string }> = ({
+  videoSrc,
+}) => (
   <AbsoluteFill style={{ backgroundColor: "#000" }}>
     {/*
-      <OffthreadVideo> rather than <Video>: tutorial.mp4 is HEVC, which headless
-      Chrome cannot decode, so <Video> hangs until delayRender() times out.
-      <OffthreadVideo> pulls exact frames through Remotion's ffmpeg compositor,
-      which handles HEVC and is the recommended component for rendering anyway.
+      <OffthreadVideo> rather than <Video>: it pulls exact frames through
+      Remotion's ffmpeg compositor, which also copes with HEVC recordings that
+      headless Chrome cannot decode, and is the recommended component for
+      rendering anyway.
     */}
     <OffthreadVideo
-      src={staticFile(VIDEO_SRC)}
-      trimBefore={Math.round(VIDEO_START_SECONDS * VIDEO_FPS)}
+      src={staticFile(videoSrc)}
       style={{ width: "100%", height: "100%", objectFit: "cover" }}
     />
   </AbsoluteFill>
 );
 
-/** The full shot: screen recording plus the camera rig and focus overlay. */
-export const FabeoDemo: React.FC<FabeoDemoProps> = ({ keyframes }) => (
-  <ZoomCamera keyframes={keyframes}>
-    <RecordingLayer />
-    <FocusRing />
-  </ZoomCamera>
-);
+/**
+ * The full shot: screen recording under the hand-timed camera. The intro has
+ * its own shot table; every other recording uses the triage shots. No
+ * FocusRing here, since it would sit on top of the text each punch-in is there
+ * to show.
+ */
+export const FabeoDemo: React.FC<FabeoDemoProps> = ({ videoSrc }) =>
+  videoSrc === INTRO_VIDEO_SRC ? (
+    <TranslateCamera shots={INTRO_SHOTS}>
+      <RecordingLayer videoSrc={videoSrc} />
+    </TranslateCamera>
+  ) : (
+    <ZoomCamera keyframes={SHOT_KEYFRAMES}>
+      <RecordingLayer videoSrc={videoSrc} />
+    </ZoomCamera>
+  );

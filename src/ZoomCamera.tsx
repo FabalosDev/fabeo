@@ -65,7 +65,7 @@ const SPRING_CONFIG = {
   stiffness: 45,
 } as const;
 
-const EASING_FUNCTIONS: Record<
+export const EASING_FUNCTIONS: Record<
   Exclude<CameraEasing, "spring">,
   (t: number) => number
 > = {
