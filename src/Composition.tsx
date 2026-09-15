@@ -353,11 +353,110 @@ export const TEST_BREAK_SHOTS: TranslateShot[] = [
   },
 ];
 
+/** public/4.mp4: fixing the broken scenario with Maia, then rerunning it. */
+export const MAIA_FIX_VIDEO_SRC = "4.mp4";
+
+/**
+ * The Maia fix edit. The Sheets tab shot asks for translateY 15, past the 10
+ * limit at scale 1.2, so it renders flush against the top edge.
+ */
+export const MAIA_FIX_SHOTS: TranslateShot[] = [
+  {
+    label: "Full scenario overview",
+    from: 0,
+    to: 7,
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+  },
+  {
+    label: "Google Sheets modal, setting the invalid date formula",
+    from: 8,
+    to: 23,
+    scale: 1.5,
+    translateX: 8,
+    translateY: 10,
+    easing: "ease-out",
+  },
+  {
+    label: "Execution, Google Sheets warning badge",
+    from: 24,
+    to: 48,
+    scale: 1.3,
+    translateX: -15,
+    translateY: -10,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Build with Maia panel, typing the prompt",
+    from: 49,
+    to: 94,
+    scale: 1.4,
+    translateX: 18,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Maia sidebar and module inspection",
+    from: 95,
+    to: 174,
+    scale: 1.15,
+    translateX: 5,
+    translateY: 5,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Maia's diagnosis and solution",
+    from: 175,
+    to: 189,
+    scale: 1.45,
+    translateX: 20,
+    translateY: 5,
+    easing: "ease-out",
+  },
+  {
+    label: "Google Sheets modal, Maia's fixed formatDate formula",
+    from: 190,
+    to: 206,
+    scale: 1.45,
+    translateX: -5,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Successful rerun, all green checkmarks",
+    from: 207,
+    to: 234,
+    scale: 1.25,
+    translateX: 0,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Google Sheets tab, newly fixed timestamp row",
+    from: 235,
+    to: 256,
+    scale: 1.2,
+    translateX: 5,
+    translateY: 15,
+    easing: "ease-in-out",
+  },
+  {
+    label: "Full canvas reset and final save",
+    from: 257,
+    scale: 1,
+    translateX: 0,
+    translateY: 0,
+    easing: "ease-in-out",
+  },
+];
+
 /** Recordings with their own TranslateCamera edit, by file name in public/. */
 export const TRANSLATE_SHOTS = new Map<string, TranslateShot[]>([
   [INTRO_VIDEO_SRC, INTRO_SHOTS],
   [EXPLAIN_VIDEO_SRC, EXPLAIN_SHOTS],
   [TEST_BREAK_VIDEO_SRC, TEST_BREAK_SHOTS],
+  [MAIA_FIX_VIDEO_SRC, MAIA_FIX_SHOTS],
 ]);
 
 /** The recording, scaled to fill the composition. */
